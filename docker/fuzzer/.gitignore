@@ -1,0 +1,14 @@
+*.json
+*.o
+*.vpi
+*.png
+*.pdf
+*.log
+*.data
+*.vcd
+
+tmp
+tmp_*
+obj_dir*
+icarus_obj_dir*
+__pycache__

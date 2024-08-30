@@ -1,0 +1,4 @@
+*.v
+tmp
+*.json
+*.log

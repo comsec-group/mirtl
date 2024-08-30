@@ -1,0 +1,139 @@
+// Copyright 2024 Flavien Solt, ETH Zurich.
+// Licensed under the General Public License, Version 3.0, see LICENSE for details.
+// SPDX-License-Identifier: GPL-3.0-only
+
+TEMPLATE_FULL_RANDOM
+TEMPLATE_DO_TRACE
+TEMPLATE_NUM_SUBNETS
+TEMPLATE_NUM_CLKIN_NETS
+TEMPLATE_NO_CLKIN_NET
+
+module testbench;
+
+// `ifndef NO_CLKIN_NET
+//   bit [31:0] clkin_data_words [`NUM_CLKIN_NETS]; // Maybe it will be unhappy in case `NUM_CLKIN_NETS==0
+// `endif
+//   bit [31:0] in_data_words    [(TEMPLATE_IN_DATA_WIDTH * `NUM_SUBNETS) / 32];
+//   bit [31:0] out_data_words   [(TEMPLATE_OUT_DATA_WIDTH * `NUM_SUBNETS) / 32];
+
+  int fd;
+  int in_buf;
+
+  int next_actor_id;
+  int next_random_input;
+  int num_32bit_inputs;
+  int initial_num_32bit_inputs;
+  int curr_actor_id_dbg;
+
+  bit [63:0] cumulated_output;
+
+  // Instantiate the design under test (DUT)
+`ifdef NO_CLKIN_NET
+  bit clkin_data;
+`else
+  bit [32*`NUM_CLKIN_NETS-1:0]  clkin_data;
+`endif
+  bit [(TEMPLATE_IN_DATA_WIDTH * `NUM_SUBNETS)-1:0]  in_data;
+  bit [(TEMPLATE_OUT_DATA_WIDTH * `NUM_SUBNETS)-1:0] out_data;
+  top dut(
+    clkin_data,
+    in_data, out_data);
+
+//   always_comb begin
+// `ifndef NO_CLKIN_NET
+//     for (int clkin_word_id = 0; clkin_word_id < `NUM_CLKIN_NETS; clkin_word_id++) begin
+//       clkin_data[32*clkin_word_id +: 32] = clkin_data_words[clkin_word_id];
+//     end
+// `endif
+//     for (int in_word_id = 0; in_word_id < (TEMPLATE_IN_DATA_WIDTH * `NUM_SUBNETS) / 32; in_word_id++) begin
+//       in_data[32*in_word_id +: 32] = in_data_words[in_word_id];
+//     end
+//     for (int out_word_id = 0; out_word_id < (TEMPLATE_OUT_DATA_WIDTH * `NUM_SUBNETS) / 32; out_word_id++) begin
+//       out_data_words[out_word_id] = out_data[32*out_word_id +: 32];
+//     end
+//   end
+
+  // Stimulus generation
+  initial begin
+    cumulated_output = 0;
+
+    fd = $fopen("TEMPLATE_PATH_TO_RANDOM_INPUTS_FILE", "r");
+    if (fd == 0) begin
+      $display("Error: could not open file `random_inputs.txt`.");
+      $finish;
+    end
+
+`ifdef DO_TRACE
+    $dumpfile("TEMPLATE_PATH_TO_DUMP_FILE");
+    $dumpvars(0,dut);
+`endif
+
+    // Implemented in VPI-C. Starts the timer.
+    $wallclocktime_start;
+
+    // fsm_state_in_reading_subnet_id: 0: idle - 1: reading first 32-bit input - ... - IN_DATA_WIDTH / 32: reading last 32-bit input
+
+    $fscanf(fd, "%d", num_32bit_inputs);
+    initial_num_32bit_inputs = num_32bit_inputs;
+
+    while (num_32bit_inputs > 0) begin
+      num_32bit_inputs--;
+      $fscanf(fd, "%h", next_actor_id);
+      // $display("Next actor id: %d.", next_actor_id);
+      $fscanf(fd, "%h", next_random_input);
+      // $display("Next random input: %h.", next_random_input);
+
+      // If this is a subnet input (with more than a single 32-bit word)
+      if (next_actor_id < `NUM_SUBNETS) begin
+        // $display("Reading input for subnet %d.", next_actor_id);
+
+        curr_actor_id_dbg = next_actor_id;
+`ifdef FULL_RANDOM
+        in_data[32*((next_actor_id*TEMPLATE_IN_DATA_WIDTH)/32) +: 32] = next_random_input;
+        for (int word_id = (next_actor_id*TEMPLATE_IN_DATA_WIDTH)/32+1; word_id < ((next_actor_id+1)*TEMPLATE_IN_DATA_WIDTH)/32; word_id++) begin
+          // $fscanf(fd, "%d", next_actor_id);
+          // if (next_actor_id != curr_actor_id_dbg) begin
+          //   $display("Error: expected to read %d inputs for subnet %d, got %d.", TEMPLATE_IN_DATA_WIDTH / 32, curr_actor_id_dbg, word_id - (next_actor_id*TEMPLATE_IN_DATA_WIDTH)/32);
+          //   $finish;
+          // end
+          $fscanf(fd, "%h", next_random_input);
+          in_data[32*word_id +: 32] = next_random_input;
+        end
+`else
+        $fatal(0, "Error: Please kindly reimplement the the case non-FULL_RANDOM for Icarus.");
+        $fscanf(fd, "%h", in_buf);
+        in_data[32*0 +: 32] = in_buf;
+        for (int word_id = 1; word_id < TEMPLATE_IN_DATA_WIDTH / 32; word_id++) begin
+          in_data[32*word_id +: 32] = in_data[32*0 +: 32] + word_id;
+        end
+`endif
+
+      // Else, this is a clkin input
+      end else begin
+`ifdef NO_CLKIN_NET
+        $fatal(0, "Error: Unexpected input for a clkin net while NO_CLKIN_NET is defined for Icarus.");
+`else
+        // $display("Reading input for clkin %d.", next_actor_id);
+        clkin_data[32*(next_actor_id - `NUM_SUBNETS) +: 32] = next_random_input;
+`endif
+      end
+      #1;
+
+      // Cumulate the outputs
+      for (int word_id = 0; word_id < TEMPLATE_OUT_DATA_WIDTH / 32; word_id++) begin
+        // $display("step id: %x, word_id: %x, value: %x", initial_num_32bit_inputs - num_32bit_inputs - 1, word_id, out_data_words[word_id]);
+        cumulated_output += out_data[32*word_id +: 32];// out_data_words[word_id];
+      end
+    end
+
+    if (num_32bit_inputs != 0) begin
+      $display("Error: expected 0 remaining inputs, got %d.", num_32bit_inputs);
+      $finish;
+    end
+
+    $display("Output signature: %d.", cumulated_output);
+    // Implemented in VPI-C. Displays the elapsed time.
+    $wallclocktime_end;
+
+  end
+endmodule

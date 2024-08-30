@@ -1,0 +1,5 @@
+*.json
+*.tgz
+tests
+.vscode
+mirtl-yosys
