@@ -8,7 +8,7 @@ For more information about TransFuzz and the security implications of the findin
 
 We provide a Docker image that you can collect running the command:
 ```
-docker pull docker.io/ethcomsec/mirtl-artifacts
+docker pull docker.io/ethcomsec/mirtl:mirtl-artifacts
 ```
 
 To build the docker image yourself:
