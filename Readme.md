@@ -7,23 +7,35 @@ Please feel free to contribute!
 For more information about TransFuzz and the security implications of the findings, visit https://comsec.ethz.ch/mirtl
 
 We provide a Docker image that you can collect running the command:
+
 ```
 docker pull docker.io/ethcomsec/mirtl:mirtl-artifacts
 ```
 
 To build the docker image yourself:
+
 ```
 cd docker
+mkdir mirtl-yosys
+```
+
+Download the mirtl-yosys archive from here https://berkeley.box.com/s/lv2jg9fzvwdlimo43i9naks4c1d5u3oh and put it into the ./docker/mirtl-yosys folder just created.
+
+Then run the following command:
+
+```
 bash rebuild_push.sh
 ```
 
 To differentially fuzz simulators run the command below after selecting the desired `FirstSimulator` and `SecondSimulator` in the same Python script.
+
 ```
 cd fuzzer
 python3 do_genonebyone.py 100 100 70
 ```
 
 This execution will log many lines looking like
+
 ```
 Match             0xc0 wl          1197512
 Match           0x2b09 wl          1095014
@@ -52,12 +64,14 @@ Match             0x30 wl          1155013
 Match              0x0 wl          1052515
 Match         0x107eba wl          1000014
 ```
+
 Each row represents one hardware circuit.
 The hexadecimal number represents the cumulative signature.
 The decimal number represents the workload identifier.
 Any mismatch between the tools would report a mismatch instead of a "Match" line.
 
 To fuzz Yosys, execute:
+
 ```
 cd fuzzer
 python3 do_genonebyone_fuzzyosys.py 100 500 70
