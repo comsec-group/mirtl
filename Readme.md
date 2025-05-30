@@ -76,3 +76,8 @@ To fuzz Yosys, execute:
 cd fuzzer
 python3 do_genonebyone_fuzzyosys.py 100 500 70
 ```
+
+The parameters of the above command are:
+- num fuzzing threads.
+- max num cells per circuit.
+- simulation length (in cycles).
